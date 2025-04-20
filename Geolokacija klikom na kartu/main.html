@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="hr">
+	<head>
+		<meta charset="UTF-8" />
+		<title>GeoTag Slika na Karti</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link
+			rel="stylesheet"
+			href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+		/>
+		<style>
+			body,
+			html {
+				margin: 0;
+				padding: 0;
+				height: 100%;
+			}
+			#map {
+				height: 100vh;
+			}
+			#controls {
+				position: absolute;
+				top: 10px;
+				left: 10px;
+				z-index: 1000;
+				background: white;
+				padding: 10px;
+				border-radius: 8px;
+				box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+			}
+			img.thumbnail {
+				max-width: 200px;
+				max-height: 200px;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="controls">
+			<label for="imageInput">Učitaj sliku:</label>
+			<input type="file" id="imageInput" accept="image/*" />
+			<p>Klikni na kartu da postaviš sliku kao geo-tag.</p>
+		</div>
+
+		<div id="map"></div>
+
+		<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+		<script>
+			const map = L.map("map").setView([45.815, 15.9819], 13); // Zagreb kao početna točka
+
+			L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+				attribution: "&copy; OpenStreetMap contributors",
+			}).addTo(map);
+
+			let uploadedImageUrl = null;
+
+			document
+				.getElementById("imageInput")
+				.addEventListener("change", function (e) {
+					const file = e.target.files[0];
+					if (!file) return;
+
+					const reader = new FileReader();
+					reader.onload = function (event) {
+						uploadedImageUrl = event.target.result;
+						alert("Slika učitana! Klikni na kartu da je postaviš.");
+					};
+					reader.readAsDataURL(file);
+				});
+
+			map.on("click", function (e) {
+				if (!uploadedImageUrl) {
+					alert("Prvo učitaj sliku.");
+					return;
+				}
+
+				const { lat, lng } = e.latlng;
+
+				const popupContent = `
+      <strong>Geo-tag:</strong><br>
+      Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}<br>
+      <img src="${uploadedImageUrl}" class="thumbnail" />
+    `;
+
+				L.marker([lat, lng]).addTo(map).bindPopup(popupContent).openPopup();
+
+				// Reset slike za sljedeći upload (po potrebi možeš maknuti ovaj red)
+				uploadedImageUrl = null;
+			});
+		</script>
+	</body>
+</html>
