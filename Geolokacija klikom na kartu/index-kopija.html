@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+  <meta charset="UTF-8" />
+  <title>GeoTag Otpad</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; }
+    #map { height: 100vh; }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 40px;
+      z-index: 1000;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      max-width: 300px;
+    }
+    img.thumbnail {
+      max-width: 100%;
+      max-height: 400px;
+      cursor: pointer;
+    }
+    select, textarea, input[type="file"] {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    #imageModal {
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      left: 0; top: 0;
+      width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.8);
+      justify-content: center;
+      align-items: center;
+    }
+    #imageModal img {
+      max-width: 90%;
+      max-height: 90%;
+      border: 4px solid white;
+      border-radius: 10px;
+    }
+    #imageModal:target {
+      display: flex;
+    }
+    #closeModal {
+      position: absolute;
+      top: 20px;
+      right: 30px;
+      color: white;
+      font-size: 40px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <label for="category">1. Vrsta otpada:</label>
+    <select id="category">
+      <option value="plastika">Plastika</option>
+      <option value="staklo">Staklo</option>
+      <option value="metal">Metal</option>
+      <option value="elektronika">Elektronika</option>
+      <option value="opasni">Opasni otpad</option>
+      <option value="glomazni">Glomazni otpad</option>
+    </select>
+
+    <label for="description">2. Opis lokacije, količina ili napomena:</label>
+    <textarea id="description" rows="2" placeholder="Unesi opis otpada i lokacije..."></textarea>
+
+    <label for="imageInput">3. Učitaj sliku otpada:</label>
+    <input type="file" id="imageInput" accept="image/*" />
+
+    <p style="color: red;">4. Klikni na kartu za unos lokacije otpada</p>
+	  
+    <label for="filter" style="color: green;"> --- Prikaz po kategoriji: ---</label>
+    <select id="filter">
+      <option value="sve">Sve</option>
+      <option value="plastika">Plastika</option>
+      <option value="staklo">Staklo</option>
+      <option value="metal">Metal</option>
+      <option value="elektronika">Elektronika</option>
+      <option value="opasni">Opasni otpad</option>
+      <option value="glomazni">Glomazni otpad</option>
+    </select>
+	  <hr>
+		<div style="margin-top:10px; text-align:center;">
+		  <button onclick="window.location.href='google-login/login.php'" style="background-color:#4285F4; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">
+			Prijava putem Google računa
+		  </button>
+		</div>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="imageModal">
+    <span id="closeModal" onclick="closeModal()">&times;</span>
+    <img id="modalImage" src="" alt="Povećana slika" />
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map("map", {
+      center: [44.11, 15.23],
+      zoom: 10
+    });
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    let uploadedFile = null;
+    const allMarkers = [];
+
+    document.getElementById("imageInput").addEventListener("change", (e) => {
+      uploadedFile = e.target.files[0];
+      if (uploadedFile) alert("Slika učitana! Klikni na kartu za unos.");
+    });
+
+    map.on("click", function (e) {
+      if (!uploadedFile) return alert("Prvo odaberi sliku, opis i vrstu otpada.");
+
+      const category = document.getElementById("category").value;
+      const description = document.getElementById("description").value.trim();
+      const { lat, lng } = e.latlng;
+
+      const formData = new FormData();
+      formData.append("image", uploadedFile);
+      formData.append("lat", lat);
+      formData.append("lng", lng);
+      formData.append("description", description);
+      formData.append("category", category);
+
+      fetch("upload.php", {
+        method: "POST",
+        body: formData,
+      })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          addMarker(lat, lng, data.imageUrl, description, category, data.created_at);
+        } else {
+          alert("Greška: " + data.message);
+        }
+      });
+
+      uploadedFile = null;
+      document.getElementById("imageInput").value = "";
+      document.getElementById("description").value = "";
+    });
+
+    function addMarker(lat, lng, imageUrl, description, category, created_at) {
+      const popup = `
+        <strong>${category.toUpperCase()}</strong><br>
+        ${description}<br>
+        <small>${new Date(created_at).toLocaleString()}</small><br>
+        <img src="${imageUrl}" class="thumbnail" onclick="openModal('${imageUrl}')" />
+      `;
+      const marker = L.marker([lat, lng]).addTo(map).bindPopup(popup);
+      marker.category = category;
+      allMarkers.push(marker);
+    }
+
+    function openModal(imageUrl) {
+      document.getElementById("modalImage").src = imageUrl;
+      document.getElementById("imageModal").style.display = "flex";
+    }
+
+    function closeModal() {
+      document.getElementById("imageModal").style.display = "none";
+      document.getElementById("modalImage").src = "";
+    }
+
+    function loadMarkers() {
+      fetch("get_markers.php")
+        .then(res => res.json())
+        .then(data => {
+          data.forEach(({ lat, lng, image_url, description, category, created_at }) => {
+            addMarker(lat, lng, image_url, description, category, created_at);
+          });
+        });
+    }
+
+    document.getElementById("filter").addEventListener("change", function () {
+      const value = this.value;
+      allMarkers.forEach(marker => {
+        if (value === "sve" || marker.category === value) {
+          map.addLayer(marker);
+        } else {
+          map.removeLayer(marker);
+        }
+      });
+    });
+
+    loadMarkers();
+  </script>
+</body>
+</html> , objasni, bez generiranja koda, kako bi ovo modificirao, kad sam imao ovaj kod sve je radilo sad ništa ne radi, to jest ne rade markeri pomoć molim
