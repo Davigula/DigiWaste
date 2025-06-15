@@ -2,8 +2,8 @@
 // Povezivanje s bazom podataka
 $host = "localhost";
 $dbname = "irkhr_digiwaste";
-$username = "irkhr_david";
-$password = "david1711#";
+$username = "";
+$password = "";
 
 $conn = new mysqli($host, $username, $password, $dbname);
 
